@@ -63,6 +63,26 @@ export default class Server extends EventEmitter<ServerEvents, any> {
      * @returns {Server}
      */
     close(callback?: ((err?: Error | undefined) => void) | undefined): Server;
+
+
+    /**
+     * Safely stops the server from accepting new connections and keeps existing connections.
+     * This function is asynchronous, the server is finally closed when all connections are ended and the server emits a `'close'` event.
+     * The optional callback will be called once the `'close'` event occurs. Unlike that event, it will be called with an `Error` as its
+     * only argument if the server was not open when it was closed.
+     *
+     * @param {(err?: Error) => void} [callback] Called when the server is closed.
+     * @returns {Server}
+     */
+    closeSafe(callback?: ((err?: Error | undefined) => void) | undefined): Server;
+
+    /**
+     * Detects if the server is still running
+     *
+     * @param {(isAlive: boolean) => void} [callback] Called when the result is ready.
+     */
+    isAlive(callback?:(isAlive:boolean)=>void): void;
+
     /**
      * Returns the bound `address`, the address `family` name, and `port` of the server as reported by the operating system if listening
      * on an IP socket (useful to find which port was assigned when getting an OS-assigned address):

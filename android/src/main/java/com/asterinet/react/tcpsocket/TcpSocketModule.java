@@ -9,6 +9,7 @@ import android.net.NetworkRequest;
 import android.util.Base64;
 import android.net.Network;
 
+import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -24,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
+import android.util.Log;
 
 public class TcpSocketModule extends ReactContextBaseJavaModule {
     private static final String TAG = "TcpSockets";
@@ -64,25 +67,22 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
     @SuppressWarnings("unused")
     @ReactMethod
     public void connect(@NonNull final Integer cId, @NonNull final String host, @NonNull final Integer port, @NonNull final ReadableMap options) {
-        executorService.execute(new Runnable() {
-            @Override
-            public void run() {
-                if (socketMap.get(cId) != null) {
-                    tcpEvtListener.onError(cId, TAG + "createSocket called twice with the same id.");
-                    return;
-                }
-                try {
-                    // Get the network interface
-                    final String localAddress = options.hasKey("localAddress") ? options.getString("localAddress") : null;
-                    final String iface = options.hasKey("interface") ? options.getString("interface") : null;
-                    selectNetwork(iface, localAddress);
-                    TcpSocketClient client = new TcpSocketClient(tcpEvtListener, cId, null);
-                    socketMap.put(cId, client);
-                    client.connect(mReactContext, host, port, options, currentNetwork.getNetwork());
-                    tcpEvtListener.onConnect(cId, client);
-                } catch (Exception e) {
-                    tcpEvtListener.onError(cId, e.getMessage());
-                }
+        executorService.execute(() -> {
+            if (socketMap.get(cId) != null) {
+                tcpEvtListener.onError(cId, TAG + "createSocket called twice with the same id.");
+                return;
+            }
+            try {
+                // Get the network interface
+                final String localAddress = options.hasKey("localAddress") ? options.getString("localAddress") : null;
+                final String iface = options.hasKey("interface") ? options.getString("interface") : null;
+                selectNetwork(iface, localAddress);
+                TcpSocketClient client = new TcpSocketClient(tcpEvtListener, cId, null);
+                socketMap.put(cId, client);
+                client.connect(mReactContext, host, port, options, currentNetwork.getNetwork());
+                tcpEvtListener.onConnect(cId, client);
+            } catch (Exception e) {
+                tcpEvtListener.onError(cId, e.getMessage());
             }
         });
     }
@@ -100,13 +100,10 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
     @SuppressWarnings("unused")
     @ReactMethod
     public void end(final Integer cId) {
-        executorService.execute(new Runnable() {
-            @Override
-            public void run() {
-                TcpSocketClient socketClient = getTcpClient(cId);
-                socketClient.destroy();
-                socketMap.remove(cId);
-            }
+        executorService.execute(() -> {
+            TcpSocketClient socketClient = getTcpClient(cId);
+            socketClient.destroy();
+            socketMap.remove(cId);
         });
     }
 
@@ -118,14 +115,22 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
 
     @SuppressWarnings("unused")
     @ReactMethod
-    public void close(final Integer cId) {
-        executorService.execute(new Runnable() {
-            @Override
-            public void run() {
+    public void close(final Integer cId, final boolean safeClose) {
+        executorService.execute(() -> {
+            if (safeClose) {
+                // this is a safe close. Avoid crashing the app.
+                try {
+                    TcpSocketServer socketServer = getTcpServer(cId, false);
+                    if (socketServer != null)
+                        socketServer.close();
+                } catch (Exception ignored) {
+                    // ignored error
+                }
+            } else {
                 TcpSocketServer socketServer = getTcpServer(cId);
                 socketServer.close();
-                socketMap.remove(cId);
             }
+            socketMap.remove(cId);
         });
     }
 
@@ -133,16 +138,13 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
     @SuppressWarnings("unused")
     @ReactMethod
     public void listen(final Integer cId, final ReadableMap options) {
-        executorService.execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    TcpSocketServer server = new TcpSocketServer(socketMap, tcpEvtListener, cId, options);
-                    socketMap.put(cId, server);
-                    tcpEvtListener.onListen(cId, server);
-                } catch (Exception uhe) {
-                    tcpEvtListener.onError(cId, uhe.getMessage());
-                }
+        executorService.execute(() -> {
+            try {
+                TcpSocketServer server = new TcpSocketServer(socketMap, tcpEvtListener, cId, options);
+                socketMap.put(cId, server);
+                tcpEvtListener.onListen(cId, server);
+            } catch (Exception uhe) {
+                tcpEvtListener.onError(cId, uhe.getMessage());
             }
         });
     }
@@ -156,6 +158,20 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
         } catch (IOException e) {
             tcpEvtListener.onError(cId, e.getMessage());
         }
+    }
+
+    @SuppressWarnings("unused")
+    @ReactMethod
+    public void isAlive(final int cId, Callback callback) {
+        TcpSocketServer server = getTcpServer(cId, false);
+        boolean result;
+        if (server != null) {
+            Log.d(TAG, "*** Socket is still alive with id: " + cId);
+            result = true;
+        } else {
+            result = false;
+        }
+        callback.invoke(result);
     }
 
     @SuppressWarnings("unused")
@@ -182,7 +198,7 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
         TcpSocketClient client = getTcpClient(cId);
         client.resume();
     }
-    
+
     @SuppressWarnings("unused")
     @ReactMethod
     public void addListener(String eventName) {
@@ -214,11 +230,8 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
         });
         // Timeout if there the network is unreachable
         ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(1);
-        exec.schedule(new Runnable() {
-            public void run() {
-                awaitingNetwork.countDown(); // Stop waiting
-            }
-        }, 5, TimeUnit.SECONDS);
+        // Stop waiting
+        exec.schedule(awaitingNetwork::countDown, 5, TimeUnit.SECONDS);
         awaitingNetwork.await();
     }
 
@@ -257,7 +270,7 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
             mNetworkMap.put(iface + ipAddress, currentNetwork.getNetwork());
     }
 
-    private TcpSocketClient getTcpClient(final int id) {
+    private TcpSocketClient getTcpClient(@NonNull final Integer id) {
         TcpSocket socket = socketMap.get(id);
         if (socket == null) {
             throw new IllegalArgumentException(TAG + "No socket with id " + id);
@@ -269,11 +282,18 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
     }
 
     private TcpSocketServer getTcpServer(final int id) {
+        return getTcpServer(id, true);
+    }
+
+    private TcpSocketServer getTcpServer(final int id, boolean throwException) {
         TcpSocket socket = socketMap.get(id);
         if (socket == null) {
-            throw new IllegalArgumentException(TAG + "No socket with id " + id);
+            if (throwException)
+                throw new IllegalArgumentException(TAG + "No socket with id " + id);
+            else
+                Log.e(TAG, "No socket with id " + id);
         }
-        if (!(socket instanceof TcpSocketServer)) {
+        if (socket != null && !(socket instanceof TcpSocketServer)) {
             throw new IllegalArgumentException(TAG + "Socket with id " + id + " is not a server");
         }
         return (TcpSocketServer) socket;
