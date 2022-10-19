@@ -199,6 +199,13 @@ class TcpSocketClient extends TcpSocket {
                 if (receiverListener != null && !socket.isClosed() && !clientSocket.closed) {
                     receiverListener.onError(socketId, ioe);
                 }
+            } catch (Exception exception) {
+                try {
+                    receiverListener.onError(socketId, exception);
+                    // receiverListener.onClose(getId(), null);
+                } catch (Exception ignored) {
+                    // nothing to do!
+                }
             }
         }
 
