@@ -1,9 +1,12 @@
 /**
+ * @typedef {import('./TLSSocket').default} TLSSocket
+ *
  * @typedef {object} ServerEvents
  * @property {() => void} close
  * @property {(socket: Socket) => void} connection
  * @property {() => void} listening
  * @property {(err: Error) => void} error
+ * @property {(tlsSocket: TLSSocket) => void} secureConnection
  *
  * @extends {EventEmitter<ServerEvents, any>}
  */
@@ -12,10 +15,10 @@ export default class Server extends EventEmitter<ServerEvents, any> {
      * @param {(socket: Socket) => void} [connectionCallback] Automatically set as a listener for the `'connection'` event.
      */
     constructor(connectionCallback?: ((socket: Socket) => void) | undefined);
-    /** @private */
-    private _id;
-    /** @private */
-    private _eventEmitter;
+    /** @protected @readonly */
+    protected readonly _id: number;
+    /** @protected @readonly */
+    protected readonly _eventEmitter: import("react-native").EventEmitter;
     /** @private @type {Set<Socket>} */
     private _connections;
     /** @private */
@@ -97,6 +100,7 @@ export default class Server extends EventEmitter<ServerEvents, any> {
      * @private
      */
     private _registerEvents;
+    _listeningListener: import("react-native").EmitterSubscription | undefined;
     _errorListener: import("react-native").EmitterSubscription | undefined;
     _connectionsListener: import("react-native").EmitterSubscription | undefined;
     /**
@@ -104,17 +108,27 @@ export default class Server extends EventEmitter<ServerEvents, any> {
      */
     private _setDisconnected;
     /**
-     * @private
+     * @protected
+     * @param {Socket} socket
+     */
+    protected _addConnection(socket: Socket): void;
+    /**
+     * @protected
      * @param {{ id: number; connection: import('./Socket').NativeConnectionInfo; }} info
      * @returns {Socket}
      */
-    private _buildSocket;
+    protected _buildSocket(info: {
+        id: number;
+        connection: import('./Socket').NativeConnectionInfo;
+    }): Socket;
 }
+export type TLSSocket = import("./TLSSocket").default;
 export type ServerEvents = {
     close: () => void;
     connection: (socket: Socket) => void;
     listening: () => void;
     error: (err: Error) => void;
+    secureConnection: (tlsSocket: TLSSocket) => void;
 };
 import EventEmitter from "eventemitter3";
 import Socket from "./Socket";

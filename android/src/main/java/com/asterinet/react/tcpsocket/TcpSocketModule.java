@@ -4,10 +4,13 @@ package com.asterinet.react.tcpsocket;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.util.Base64;
-import android.net.Network;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -29,10 +32,11 @@ import androidx.annotation.Nullable;
 import android.util.Log;
 
 public class TcpSocketModule extends ReactContextBaseJavaModule {
-    private static final String TAG = "TcpSockets";
+    public static final String TAG = "TcpSockets";
     private static final int N_THREADS = 2;
     private final ReactApplicationContext mReactContext;
     private final ConcurrentHashMap<Integer, TcpSocket> socketMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, ReadableMap> pendingTLS = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Network> mNetworkMap = new ConcurrentHashMap<>();
     private final CurrentNetwork currentNetwork = new CurrentNetwork();
     private final ExecutorService executorService = Executors.newFixedThreadPool(N_THREADS);
@@ -69,7 +73,7 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
     public void connect(@NonNull final Integer cId, @NonNull final String host, @NonNull final Integer port, @NonNull final ReadableMap options) {
         executorService.execute(() -> {
             if (socketMap.get(cId) != null) {
-                tcpEvtListener.onError(cId, TAG + "createSocket called twice with the same id.");
+                    tcpEvtListener.onError(cId, new Exception("connect() called twice with the same id."));
                 return;
             }
             try {
@@ -79,12 +83,30 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
                 selectNetwork(iface, localAddress);
                 TcpSocketClient client = new TcpSocketClient(tcpEvtListener, cId, null);
                 socketMap.put(cId, client);
-                client.connect(mReactContext, host, port, options, currentNetwork.getNetwork());
+                    ReadableMap tlsOptions = pendingTLS.get(cId);
+                    client.connect(mReactContext, host, port, options, currentNetwork.getNetwork(), tlsOptions);
                 tcpEvtListener.onConnect(cId, client);
             } catch (Exception e) {
-                tcpEvtListener.onError(cId, e.getMessage());
+                    tcpEvtListener.onError(cId, e);
             }
         });
+    }
+
+    @SuppressLint("StaticFieldLeak")
+    @SuppressWarnings("unused")
+    @ReactMethod
+    public void startTLS(final int cId, @NonNull final ReadableMap tlsOptions) {
+        TcpSocketClient socketClient = (TcpSocketClient) socketMap.get(cId);
+        // Not yet connected
+        if (socketClient == null) {
+            pendingTLS.put(cId, tlsOptions);
+        } else {
+            try {
+                socketClient.startTLS(mReactContext, tlsOptions);
+            } catch (Exception e) {
+                tcpEvtListener.onError(cId, e);
+            }
+        }
     }
 
     @SuppressLint("StaticFieldLeak")
@@ -140,11 +162,11 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
     public void listen(final Integer cId, final ReadableMap options) {
         executorService.execute(() -> {
             try {
-                TcpSocketServer server = new TcpSocketServer(socketMap, tcpEvtListener, cId, options);
+                    TcpSocketServer server = new TcpSocketServer(mReactContext, socketMap, tcpEvtListener, cId, options);
                 socketMap.put(cId, server);
                 tcpEvtListener.onListen(cId, server);
             } catch (Exception uhe) {
-                tcpEvtListener.onError(cId, uhe.getMessage());
+                    tcpEvtListener.onError(cId, uhe);
             }
         });
     }
@@ -156,7 +178,7 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
         try {
             client.setNoDelay(noDelay);
         } catch (IOException e) {
-            tcpEvtListener.onError(cId, e.getMessage());
+            tcpEvtListener.onError(cId, e);
         }
     }
 
@@ -181,7 +203,7 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
         try {
             client.setKeepAlive(enable, initialDelay);
         } catch (IOException e) {
-            tcpEvtListener.onError(cId, e.getMessage());
+            tcpEvtListener.onError(cId, e);
         }
     }
 
@@ -230,8 +252,11 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
         });
         // Timeout if there the network is unreachable
         ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(1);
-        // Stop waiting
-        exec.schedule(awaitingNetwork::countDown, 5, TimeUnit.SECONDS);
+        exec.schedule(new Runnable() {
+            public void run() {
+                awaitingNetwork.countDown(); // Stop waiting
+            }
+        }, 5, TimeUnit.SECONDS);
         awaitingNetwork.await();
     }
 
@@ -270,13 +295,13 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
             mNetworkMap.put(iface + ipAddress, currentNetwork.getNetwork());
     }
 
-    private TcpSocketClient getTcpClient(@NonNull final Integer id) {
+    private TcpSocketClient getTcpClient(final int id) {
         TcpSocket socket = socketMap.get(id);
         if (socket == null) {
-            throw new IllegalArgumentException(TAG + "No socket with id " + id);
+            throw new IllegalArgumentException("No socket with id " + id);
         }
         if (!(socket instanceof TcpSocketClient)) {
-            throw new IllegalArgumentException(TAG + "Socket with id " + id + " is not a client");
+            throw new IllegalArgumentException("Socket with id " + id + " is not a client");
         }
         return (TcpSocketClient) socket;
     }
