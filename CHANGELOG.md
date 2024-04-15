@@ -1,3 +1,31 @@
+## [6.0.6](https://github.com/Rapsssito/react-native-tcp-socket/compare/v6.0.5...v6.0.6) (2023-02-08)
+
+
+### Bug Fixes
+
+* **Android:** Avoid crash when writing on closed socket. ([466a5db](https://github.com/Rapsssito/react-native-tcp-socket/commit/466a5db0285f6ab688d32c81b682dd320999bbdc)), closes [#167](https://github.com/Rapsssito/react-native-tcp-socket/issues/167)
+
+## [6.0.5](https://github.com/Rapsssito/react-native-tcp-socket/compare/v6.0.4...v6.0.5) (2023-01-30)
+
+
+### Bug Fixes
+
+* **iOS:** Throw specific error messages ([#171](https://github.com/Rapsssito/react-native-tcp-socket/issues/171)) ([8f39511](https://github.com/Rapsssito/react-native-tcp-socket/commit/8f3951199fcdd0806912e2a953d80db9466518a8))
+
+## [6.0.4](https://github.com/Rapsssito/react-native-tcp-socket/compare/v6.0.3...v6.0.4) (2023-01-30)
+
+
+### Bug Fixes
+
+* Allow destroying socket while connecting ([#169](https://github.com/Rapsssito/react-native-tcp-socket/issues/169)) ([54cc248](https://github.com/Rapsssito/react-native-tcp-socket/commit/54cc2486ee4201d8c62bc9535610ff75f72b820d))
+
+## [6.0.3](https://github.com/Rapsssito/react-native-tcp-socket/compare/v6.0.2...v6.0.3) (2022-11-21)
+
+
+### Bug Fixes
+
+* **Android:** Fix null error writing on disconnected socket ([59d3195](https://github.com/Rapsssito/react-native-tcp-socket/commit/59d3195a8c68eddb0341c8264d712ed2266d23b5))
+
 ## [6.0.2](https://github.com/Rapsssito/react-native-tcp-socket/compare/v6.0.1...v6.0.2) (2022-09-30)
 
 
