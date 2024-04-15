@@ -142,6 +142,27 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
             if (safeClose) {
                 // this is a safe close. Avoid crashing the app.
                 try {
+                    TcpSocketServer socketServer = getTcpServer(cId, true);
+                    if (socketServer != null)
+                        socketServer.close();
+                } catch (Exception ignored) {
+                    // ignored error
+                }
+            } else {
+                TcpSocketServer socketServer = getTcpServer(cId);
+                socketServer.close();
+            }
+            socketMap.remove(cId);
+        });
+    }
+
+    @SuppressWarnings("unused")
+    @ReactMethod
+    public void close(final Integer cId) {
+        executorService.execute(() -> {
+            if (safeClose) {
+                // this is a safe close. Avoid crashing the app.
+                try {
                     TcpSocketServer socketServer = getTcpServer(cId, false);
                     if (socketServer != null)
                         socketServer.close();
