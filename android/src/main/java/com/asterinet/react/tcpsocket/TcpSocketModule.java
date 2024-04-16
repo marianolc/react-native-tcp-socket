@@ -159,6 +159,7 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
     @SuppressWarnings("unused")
     @ReactMethod
     public void close(final Integer cId) {
+
         executorService.execute(() -> {
             if (safeClose) {
                 // this is a safe close. Avoid crashing the app.
