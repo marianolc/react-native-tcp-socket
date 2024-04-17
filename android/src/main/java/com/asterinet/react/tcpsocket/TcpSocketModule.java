@@ -73,7 +73,7 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
     public void connect(@NonNull final Integer cId, @NonNull final String host, @NonNull final Integer port, @NonNull final ReadableMap options) {
         executorService.execute(() -> {
             if (socketMap.get(cId) != null) {
-                    tcpEvtListener.onError(cId, new Exception("connect() called twice with the same id."));
+                tcpEvtListener.onError(cId, new Exception("connect() called twice with the same id."));
                 return;
             }
             try {
@@ -83,11 +83,11 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
                 selectNetwork(iface, localAddress);
                 TcpSocketClient client = new TcpSocketClient(tcpEvtListener, cId, null);
                 socketMap.put(cId, client);
-                    ReadableMap tlsOptions = pendingTLS.get(cId);
-                    client.connect(mReactContext, host, port, options, currentNetwork.getNetwork(), tlsOptions);
+                ReadableMap tlsOptions = pendingTLS.get(cId);
+                client.connect(mReactContext, host, port, options, currentNetwork.getNetwork(), tlsOptions);
                 tcpEvtListener.onConnect(cId, client);
             } catch (Exception e) {
-                    tcpEvtListener.onError(cId, e);
+                tcpEvtListener.onError(cId, e);
             }
         });
     }
@@ -137,42 +137,15 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
 
     @SuppressWarnings("unused")
     @ReactMethod
-    public void close(final Integer cId, final boolean safeClose) {
-        executorService.execute(() -> {
-            if (safeClose) {
-                // this is a safe close. Avoid crashing the app.
-                try {
-                    TcpSocketServer socketServer = getTcpServer(cId, true);
-                    if (socketServer != null)
-                        socketServer.close();
-                } catch (Exception ignored) {
-                    // ignored error
-                }
-            } else {
-                TcpSocketServer socketServer = getTcpServer(cId);
-                socketServer.close();
-            }
-            socketMap.remove(cId);
-        });
-    }
-
-    @SuppressWarnings("unused")
-    @ReactMethod
     public void close(final Integer cId) {
-
         executorService.execute(() -> {
-            if (safeClose) {
-                // this is a safe close. Avoid crashing the app.
-                try {
-                    TcpSocketServer socketServer = getTcpServer(cId, false);
-                    if (socketServer != null)
-                        socketServer.close();
-                } catch (Exception ignored) {
-                    // ignored error
-                }
-            } else {
-                TcpSocketServer socketServer = getTcpServer(cId);
-                socketServer.close();
+            // this is a safe close. Avoid crashing the app.
+            try {
+                TcpSocketServer socketServer = getTcpServer(cId, false);
+                if (socketServer != null)
+                    socketServer.close();
+            } catch (Exception ignored) {
+                // ignored error
             }
             socketMap.remove(cId);
         });
@@ -184,11 +157,11 @@ public class TcpSocketModule extends ReactContextBaseJavaModule {
     public void listen(final Integer cId, final ReadableMap options) {
         executorService.execute(() -> {
             try {
-                    TcpSocketServer server = new TcpSocketServer(mReactContext, socketMap, tcpEvtListener, cId, options);
+                TcpSocketServer server = new TcpSocketServer(mReactContext, socketMap, tcpEvtListener, cId, options);
                 socketMap.put(cId, server);
                 tcpEvtListener.onListen(cId, server);
             } catch (Exception uhe) {
-                    tcpEvtListener.onError(cId, uhe);
+                tcpEvtListener.onError(cId, uhe);
             }
         });
     }
