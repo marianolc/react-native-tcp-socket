@@ -162,6 +162,27 @@ export default class Server extends EventEmitter {
     }
 
     /**
+     * Safely stops the server from accepting new connections and keeps existing connections.
+     * This function is asynchronous, the server is finally closed when all connections are ended and the server emits a `'close'` event.
+     * The optional callback will be called once the `'close'` event occurs. Unlike that event, it will be called with an `Error` as its
+     * only argument if the server was not open when it was closed.
+     *
+     * @param {(err?: Error) => void} [callback] Called when the server is closed.
+     * @returns {Server}
+     */
+    closeSafe(callback) {
+        if (!this._localAddress) {
+            callback?.(new Error('ERR_SERVER_NOT_RUNNING'));
+            return this;
+        }
+        if (callback) this.once('close', callback);
+        this.listening = false;
+        Sockets.close(this._id, true);
+        if (this._connections.size === 0) this.emit('close');
+        return this;
+    }
+
+    /**
      * Returns the bound `address`, the address `family` name, and `port` of the server as reported by the operating system if listening
      * on an IP socket (useful to find which port was assigned when getting an OS-assigned address):
      * `{ port: 12346, family: 'IPv4', address: '127.0.0.1' }`.
